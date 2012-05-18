@@ -18,61 +18,57 @@ package com.android.providers.partnerbookmarks;
 
 import android.content.ContentProviderClient;
 import android.database.Cursor;
-import android.test.InstrumentationTestCase;
-import android.test.mock.MockContext;
-import android.test.suitebuilder.annotation.MediumTest;
+import android.test.AndroidTestCase;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.text.TextUtils;
 import android.util.Log;
-
-import java.util.Arrays;
 
 import junit.framework.TestCase;
 
-public class PartnerBookmarksProviderTest extends InstrumentationTestCase {
+public class PartnerBookmarksProviderTest extends AndroidTestCase {
     private static final String TAG = "PartnerBookmarksProviderTest";
     private static final long FIXED_ID_PARTNER_BOOKMARKS_ROOT =
             PartnerBookmarksContract.Bookmarks.BOOKMARK_PARENT_ROOT_ID + 1;
     private static final long NO_FOLDER_FILTER = -1;
 
-    @Override
-    public void setUp() {
-    }
-
-    @Override
-    public void tearDown() {
-    }
-
     private int countBookmarksInFolder(long folderFilter) throws android.os.RemoteException {
         ContentProviderClient providerClient =
-                getInstrumentation().getTargetContext().
-                        getContentResolver().acquireContentProviderClient(
-                                PartnerBookmarksContract.Bookmarks.CONTENT_URI);
+                getContext().getContentResolver().acquireContentProviderClient(
+                        PartnerBookmarksContract.Bookmarks.CONTENT_URI);
         assertNotNull(
                 "Failed to acquire " + PartnerBookmarksContract.Bookmarks.CONTENT_URI,
                 providerClient);
-        Cursor cursor = providerClient.query(PartnerBookmarksContract.Bookmarks.CONTENT_URI,
-                null, null, null, null);
-        assertNotNull("Failed to query for bookmarks", cursor);
-        int bookmarksCount = 0;
-        while (!cursor.isLast() && !cursor.isAfterLast()) {
-            cursor.moveToNext();
-            long id = cursor.getLong(
-                    cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.ID));
-            long parent = cursor.getLong(
-                    cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.PARENT));
-            if (folderFilter != NO_FOLDER_FILTER && folderFilter != parent)
-                continue;
-            boolean isFolder = cursor.getInt(
-                    cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.TYPE))
-                            == PartnerBookmarksContract.Bookmarks.BOOKMARK_TYPE_FOLDER;
-            String url = cursor.getString(
-                    cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.URL));
-            String title = cursor.getString(
-                    cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.TITLE));
-            bookmarksCount++;
+        Cursor cursor = null;
+        try {
+            cursor = providerClient.query(PartnerBookmarksContract.Bookmarks.CONTENT_URI,
+                    null, null, null, null);
+            assertNotNull("Failed to query for bookmarks", cursor);
+            int bookmarksCount = 0;
+            while (cursor.moveToNext()) {
+                long id = cursor.getLong(
+                        cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.ID));
+                long parent = cursor.getLong(
+                        cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.PARENT));
+                boolean isFolder = cursor.getInt(
+                        cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.TYPE))
+                                == PartnerBookmarksContract.Bookmarks.BOOKMARK_TYPE_FOLDER;
+                String url = cursor.getString(
+                        cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.URL));
+                String title = cursor.getString(
+                        cursor.getColumnIndexOrThrow(PartnerBookmarksContract.Bookmarks.TITLE));
+                assertFalse("bookmark id must be non-zero", id == 0);
+                assertFalse("url should not be empty if not a folder", !isFolder && url.isEmpty());
+                assertFalse("title should never be empty", title.isEmpty());
+                if (folderFilter == NO_FOLDER_FILTER || folderFilter == parent) {
+                    bookmarksCount++;
+                }
+            }
+            return bookmarksCount;
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+            providerClient.release();
         }
-        return bookmarksCount;
     }
 
     @SmallTest
